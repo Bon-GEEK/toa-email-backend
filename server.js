@@ -48,7 +48,7 @@ const validateEmail = (email) => {
 };
 
 // Store emails in memory (in production, use a database)
-const emailSubscribers = new Set();
+const emailSubscribers = new Map(); // Changed to Map to store additional data
 
 // Routes
 app.get('/', (req, res) => {
@@ -93,16 +93,21 @@ app.post('/api/subscribe', emailLimiter, async (req, res) => {
       });
     }
 
-    // Add to subscribers list
-    emailSubscribers.add(email.toLowerCase());
+    // Add to subscribers list with metadata
+    emailSubscribers.set(email.toLowerCase(), {
+      email: email.toLowerCase(),
+      name: name,
+      subscribedAt: new Date().toISOString(),
+      status: 'active'
+    });
 
     // Create email transporter
     const transporter = createTransporter();
 
     // Email to admin
     const adminEmail = {
-      from: process.env.EMAIL_USER,
-      to: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+      from: 'thetoacreatives@gmail.com',
+      to: 'thetoacreatives@gmail.com, great.igbokwe.242981@gmail.com',
       subject: '🎉 New Newsletter Subscription - TOA Creatives',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
@@ -128,7 +133,7 @@ app.post('/api/subscribe', emailLimiter, async (req, res) => {
 
     // Confirmation email to subscriber
     const confirmationEmail = {
-      from: process.env.EMAIL_USER,
+      from: 'thetoacreatives@gmail.com',
       to: email,
       subject: '🌟 Welcome to TOA Creatives Newsletter!',
       html: `
@@ -212,9 +217,54 @@ app.get('/api/subscribers', (req, res) => {
 
   res.json({
     success: true,
-    subscribers: Array.from(emailSubscribers),
+    subscribers: Array.from(emailSubscribers.values()),
     count: emailSubscribers.size
   });
+});
+
+// Admin dashboard HTML (simple, protected by query param for now)
+app.get('/admin', (req, res) => {
+  const adminKey = req.query.key;
+  if (adminKey !== process.env.ADMIN_KEY) {
+    return res.status(401).send('<h2>Unauthorized</h2>');
+  }
+  res.setHeader('Content-Type', 'text/html');
+  res.send(`<!DOCTYPE html>
+<html>
+  <head>
+    <title>TOA Creatives Admin Dashboard</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #f9f9f9; padding: 40px; }
+      h1 { color: #ff6b35; }
+      table { border-collapse: collapse; width: 100%; background: white; }
+      th, td { border: 1px solid #ddd; padding: 8px; }
+      th { background: #ffeb3b; color: #333; }
+    </style>
+  </head>
+  <body>
+    <h1>TOA Creatives Subscribers</h1>
+    <table id="subsTable">
+      <thead>
+        <tr><th>Email</th><th>Name</th><th>Subscribed At</th><th>Status</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <script>
+      fetch('/api/subscribers', { headers: { 'x-admin-key': '${process.env.ADMIN_KEY}' } })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            const tbody = document.querySelector('#subsTable tbody');
+            data.subscribers.forEach(sub => {
+              const tr = document.createElement('tr');
+              tr.innerHTML = '<td>' + sub.email + '</td><td>' + sub.name + '</td><td>' + sub.subscribedAt + '</td><td>' + sub.status + '</td>';
+              tbody.appendChild(tr);
+            });
+          }
+        });
+    </script>
+  </body>
+</html>`);
 });
 
 // Contact form endpoint
@@ -242,8 +292,8 @@ app.post('/api/contact', emailLimiter, async (req, res) => {
 
     // Contact form email
     const contactEmail = {
-      from: process.env.EMAIL_USER,
-      to: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+      from: 'thetoacreatives@gmail.com',
+      to: 'thetoacreatives@gmail.com, great.igbokwe.242981@gmail.com',
       subject: `📧 ${subject} - TOA Creatives`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
